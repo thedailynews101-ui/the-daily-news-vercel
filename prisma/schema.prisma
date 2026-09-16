@@ -1,0 +1,316 @@
+generator client {
+  provider            = "prisma-client"
+  output              = "../src/generated/prisma"
+  moduleFormat        = "cjs"
+  importFileExtension = ""
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+/// Coarse-grained role. Rank order: SUPER_ADMIN > ADMIN > EMPLOYEE > USER.
+/// An actor may only act on accounts of a strictly lower rank.
+enum UserRole {
+  SUPER_ADMIN
+  ADMIN
+  EMPLOYEE
+  USER
+}
+
+enum UserStatus {
+  PENDING_VERIFICATION
+  ACTIVE
+  SUSPENDED
+  BANNED
+}
+
+/// Fine-grained capabilities an admin grants to an employee.
+/// ADMIN and SUPER_ADMIN bypass these checks entirely.
+enum Permission {
+  ARTICLE_CREATE
+  ARTICLE_REVIEW
+  ARTICLE_PUBLISH
+  ARTICLE_EDIT_ANY
+  ARTICLE_DELETE_ANY
+  COMMENT_MODERATE
+  CATEGORY_MANAGE
+  TAG_MANAGE
+  USER_VIEW
+  USER_MANAGE
+  ROLE_MANAGE
+  ANALYTICS_VIEW
+}
+
+/// DRAFT     -> author is still writing, nobody else sees it
+/// PENDING   -> submitted, waiting in the moderation queue
+/// APPROVED  -> cleared by an employee/admin; public once publishedAt has passed
+/// REJECTED  -> turned down, rejectionReason explains why
+/// ARCHIVED  -> was live, taken back down
+enum ArticleStatus {
+  DRAFT
+  PENDING
+  APPROVED
+  REJECTED
+  ARCHIVED
+}
+
+enum ReviewAction {
+  APPROVED
+  REJECTED
+  CHANGES_REQUESTED
+  ARCHIVED
+  RESTORED
+}
+
+enum CommentStatus {
+  VISIBLE
+  HIDDEN
+}
+
+/// EMAIL_VERIFICATION -> issued at signup / resend, consumed by /verify-email
+/// PASSWORD_RESET     -> issued by /forgot-password, consumed by /reset-password
+enum TokenType {
+  EMAIL_VERIFICATION
+  PASSWORD_RESET
+}
+
+// ---------------------------------------------------------------------------
+// Identity & access
+// ---------------------------------------------------------------------------
+
+model User {
+  id              String     @id @default(uuid(7))
+  name            String
+  email           String     @unique
+  passwordHash    String
+  role            UserRole   @default(USER)
+  status          UserStatus @default(PENDING_VERIFICATION)
+  avatarUrl       String?
+  bio             String?
+  emailVerifiedAt DateTime?
+  lastLoginAt     DateTime?
+  deletedAt       DateTime?
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  permissions        UserPermission[] @relation("PermissionHolder")
+  grantedPermissions UserPermission[] @relation("PermissionGranter")
+  sessions           Session[]
+  verificationTokens VerificationToken[]
+  articles           Article[]        @relation("ArticleAuthor")
+  reviewedArticles   Article[]        @relation("ArticleReviewer")
+  reviews            ArticleReview[]
+  savedArticles      SavedArticle[]
+  comments           Comment[]
+  auditLogs          AuditLog[]       @relation("AuditActor")
+
+  @@index([role, status])
+  @@index([deletedAt])
+}
+
+model UserPermission {
+  id          String     @id @default(uuid(7))
+  userId      String
+  permission  Permission
+  grantedById String?
+  grantedAt   DateTime   @default(now())
+
+  user      User  @relation("PermissionHolder", fields: [userId], references: [id], onDelete: Cascade)
+  grantedBy User? @relation("PermissionGranter", fields: [grantedById], references: [id], onDelete: SetNull)
+
+  @@unique([userId, permission])
+  @@index([userId])
+}
+
+/// One row per refresh token. Only the hash is stored, so a database leak
+/// cannot be replayed against the API.
+model Session {
+  id               String    @id @default(uuid(7))
+  userId           String
+  refreshTokenHash String    @unique
+  userAgent        String?
+  ipAddress        String?
+  expiresAt        DateTime
+  revokedAt        DateTime?
+  createdAt        DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+}
+
+/// One row per issued email-verification or password-reset token. Only the
+/// hash is stored; the raw value is only ever sent in the email link.
+model VerificationToken {
+  id        String    @id @default(uuid(7))
+  userId    String
+  type      TokenType
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, type])
+}
+
+// ---------------------------------------------------------------------------
+// Taxonomy
+// ---------------------------------------------------------------------------
+
+model Category {
+  id          String   @id @default(uuid(7))
+  name        String   @unique
+  slug        String   @unique
+  description String?
+  position    Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  articles Article[]
+}
+
+model Tag {
+  id        String   @id @default(uuid(7))
+  name      String   @unique
+  slug      String   @unique
+  createdAt DateTime @default(now())
+
+  articles ArticleTag[]
+}
+
+model ArticleTag {
+  articleId String
+  tagId     String
+
+  article Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  tag     Tag     @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([articleId, tagId])
+  @@index([tagId])
+}
+
+// ---------------------------------------------------------------------------
+// Editorial
+// ---------------------------------------------------------------------------
+
+model Article {
+  id              String        @id @default(uuid(7))
+  title           String
+  slug            String        @unique
+  excerpt         String?
+  content         String
+  coverImageUrl   String?
+  status          ArticleStatus @default(DRAFT)
+  isFeatured      Boolean       @default(false)
+  isBreaking      Boolean       @default(false)
+  readTimeMinutes Int           @default(1)
+  viewCount       Int           @default(0)
+
+  authorId   String
+  categoryId String?
+
+  // Latest moderation outcome, denormalised from ArticleReview so the
+  // dashboards can filter and sort without joining the history table.
+  submittedAt     DateTime?
+  reviewedById    String?
+  reviewedAt      DateTime?
+  rejectionReason String?
+  publishedAt     DateTime?
+
+  deletedAt DateTime? // set instead of deleting, so moderation history survives
+  createdAt DateTime  @default(now())
+  updatedAt DateTime @updatedAt
+
+  author     User            @relation("ArticleAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  reviewedBy User?           @relation("ArticleReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  category   Category?       @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  tags       ArticleTag[]
+  reviews    ArticleReview[]
+  savedBy    SavedArticle[]
+  comments   Comment[]
+
+  @@index([status, publishedAt(sort: Desc)])
+  @@index([categoryId, status, publishedAt(sort: Desc)])
+  @@index([authorId, status, createdAt(sort: Desc)])
+  @@index([status, submittedAt])
+  @@index([reviewedById])
+}
+
+/// Append-only moderation trail: who decided what, when, and why.
+model ArticleReview {
+  id         String       @id @default(uuid(7))
+  articleId  String
+  reviewerId String?
+  action     ReviewAction
+  note       String?
+  createdAt  DateTime     @default(now())
+
+  article  Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  reviewer User?   @relation(fields: [reviewerId], references: [id], onDelete: SetNull)
+
+  @@index([articleId, createdAt(sort: Desc)])
+  @@index([reviewerId, createdAt(sort: Desc)])
+}
+
+model SavedArticle {
+  userId    String
+  articleId String
+  savedAt   DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  article Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+
+  @@id([userId, articleId])
+  @@index([userId, savedAt(sort: Desc)])
+  @@index([articleId])
+}
+
+model Comment {
+  id        String        @id @default(uuid(7))
+  articleId String
+  authorId  String
+  parentId  String?
+  body      String
+  status    CommentStatus @default(VISIBLE)
+  deletedAt DateTime?
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  article Article   @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  author  User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  parent  Comment?  @relation("CommentThread", fields: [parentId], references: [id], onDelete: Cascade)
+  replies Comment[] @relation("CommentThread")
+
+  @@index([articleId, createdAt])
+  @@index([authorId])
+  @@index([parentId])
+}
+
+// ---------------------------------------------------------------------------
+// Governance
+// ---------------------------------------------------------------------------
+
+/// Trail for privileged actions: role changes, permission grants, account
+/// deletions. Keeps super admin oversight possible after the fact.
+model AuditLog {
+  id         String   @id @default(uuid(7))
+  actorId    String?
+  action     String
+  entityType String
+  entityId   String?
+  metadata   Json?
+  ipAddress  String?
+  createdAt  DateTime @default(now())
+
+  actor User? @relation("AuditActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([entityType, entityId, createdAt(sort: Desc)])
+  @@index([actorId, createdAt(sort: Desc)])
+}
