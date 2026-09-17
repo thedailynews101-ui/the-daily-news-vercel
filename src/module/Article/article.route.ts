@@ -9,6 +9,7 @@ import {
   restoreArticleSchema,
   updateArticleSchema,
 } from "./article.validation";
+import { homePlacementSchema } from "../PublicArticle/publicArticle.validation";
 import auth from "../../middleware/auth";
 import validateRequest from "../../middleware/validateRequest";
 import { UserRole } from "../../generated/prisma/enums";
@@ -21,8 +22,10 @@ const STAFF = [UserRole.EMPLOYEE, UserRole.ADMIN, UserRole.SUPER_ADMIN] as const
 router.get("/mine", auth(), articleController.getMine);
 router.get("/mine/summary", auth(), articleController.getMineSummary);
 
-// --- Staff moderation & management ------------------------------------------
+// --- Staff moderation & homepage placement ----------------------------------
 router.get("/queue", auth(...STAFF), articleController.listQueue);
+router.get("/home-layout", auth(...STAFF), articleController.getHomeLayout);
+router.get("/published", auth(...STAFF), articleController.listPublishedForPlacement);
 router.get("/", auth(...STAFF), articleController.listAllArticles);
 
 router.post("/", auth(), validateRequest(createArticleSchema), articleController.createArticle);
@@ -38,6 +41,13 @@ router.delete("/:id", auth(), articleController.deleteArticle);
 
 router.post("/:id/submit", auth(), articleController.submitArticle);
 router.post("/:id/withdraw", auth(), articleController.withdrawArticle);
+
+router.patch(
+  "/:id/home-placement",
+  auth(...STAFF),
+  validateRequest(homePlacementSchema),
+  articleController.setHomePlacement
+);
 
 router.post(
   "/:id/approve",

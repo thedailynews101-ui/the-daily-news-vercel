@@ -51,6 +51,8 @@ const toArticleDTO = (article: ArticleWithRelations) => ({
   status: article.status,
   isFeatured: article.isFeatured,
   isBreaking: article.isBreaking,
+  homeSlot: article.homeSlot,
+  homeRank: article.homeRank,
   readTimeMinutes: article.readTimeMinutes,
   viewCount: article.viewCount,
   author: article.author,
@@ -281,7 +283,7 @@ export const deleteArticle = async (user: ActingUser, id: string): Promise<void>
 
   await prisma.article.update({
     where: { id: article.id },
-    data: { deletedAt: new Date() },
+    data: { deletedAt: new Date(), homeSlot: null, homeRank: 0 },
   });
 };
 
@@ -543,6 +545,8 @@ export const archiveArticle = async (
     note: input.note,
     data: {
       status: ArticleStatus.ARCHIVED,
+      homeSlot: null,
+      homeRank: 0,
       reviewedBy: { connect: { id: reviewer.id } },
       reviewedAt: new Date(),
     },

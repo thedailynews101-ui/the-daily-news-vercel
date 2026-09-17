@@ -3,6 +3,7 @@ import { Request, Response } from "express";
 import * as articleService from "./article.service";
 import { ActingUser } from "./article.service";
 import { listArticlesQuerySchema, mineArticlesQuerySchema } from "./article.validation";
+import * as publicArticleService from "../PublicArticle/publicArticle.service";
 import sendResponse from "../../utils/sendResponse";
 
 const actingUser = (req: Request): ActingUser => ({
@@ -184,6 +185,43 @@ export const restoreArticle = async (req: Request, res: Response) => {
   sendResponse(res, {
     statusCode: 200,
     message: "Article restored to approved.",
+    data: article,
+  });
+};
+
+export const getHomeLayout = async (_req: Request, res: Response) => {
+  const layout = await publicArticleService.getHomeLayout();
+
+  sendResponse(res, {
+    statusCode: 200,
+    message: "Homepage layout retrieved successfully.",
+    data: layout,
+  });
+};
+
+export const listPublishedForPlacement = async (req: Request, res: Response) => {
+  const page = Number(req.query["page"] ?? 1) || 1;
+  const limit = Number(req.query["limit"] ?? 20) || 20;
+  const q = typeof req.query["q"] === "string" ? req.query["q"] : undefined;
+
+  const result = await publicArticleService.listPublishedForPlacement({ q, page, limit });
+
+  sendResponse(res, {
+    statusCode: 200,
+    message: "Published articles retrieved successfully.",
+    data: result,
+  });
+};
+
+export const setHomePlacement = async (req: Request, res: Response) => {
+  const article = await publicArticleService.setHomePlacement(
+    req.params["id"] as string,
+    req.body
+  );
+
+  sendResponse(res, {
+    statusCode: 200,
+    message: "Homepage placement updated.",
     data: article,
   });
 };

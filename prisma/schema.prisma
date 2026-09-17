@@ -67,6 +67,15 @@ enum ReviewAction {
   RESTORED
 }
 
+/// Where a published article appears on the public homepage. Null = not on home.
+enum HomeSlot {
+  HERO
+  MEGA
+  FEED
+  VISUAL
+  PINNED
+}
+
 enum CommentStatus {
   VISIBLE
   HIDDEN
@@ -210,6 +219,8 @@ model Article {
   status          ArticleStatus @default(DRAFT)
   isFeatured      Boolean       @default(false)
   isBreaking      Boolean       @default(false)
+  homeSlot        HomeSlot?
+  homeRank        Int           @default(0)
   readTimeMinutes Int           @default(1)
   viewCount       Int           @default(0)
 
@@ -241,6 +252,7 @@ model Article {
   @@index([authorId, status, createdAt(sort: Desc)])
   @@index([status, submittedAt])
   @@index([reviewedById])
+  @@index([homeSlot, homeRank])
 }
 
 /// Append-only moderation trail: who decided what, when, and why.
