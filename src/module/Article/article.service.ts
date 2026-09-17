@@ -469,6 +469,37 @@ export const approveArticle = async (
   });
 };
 
+/** Staff-only: publish a newsroom draft without going through the user moderation queue. */
+export const publishDraft = async (
+  staff: ActingUser,
+  id: string,
+  input: ApproveArticleInput = {}
+): Promise<ReturnType<typeof toArticleDTO>> => {
+  if (!isStaff(staff.role)) {
+    throw new AppError(403, "Only staff can publish drafts directly.");
+  }
+
+  const article = await findArticleOrThrow(id);
+
+  if (article.status !== ArticleStatus.DRAFT) {
+    throw new AppError(409, "Only draft articles can be published this way.");
+  }
+
+  return recordDecision({
+    articleId: article.id,
+    reviewerId: staff.id,
+    action: ReviewAction.APPROVED,
+    note: input.note,
+    data: {
+      status: ArticleStatus.APPROVED,
+      reviewedBy: { connect: { id: staff.id } },
+      reviewedAt: new Date(),
+      rejectionReason: null,
+      publishedAt: input.publishedAt ?? new Date(),
+    },
+  });
+};
+
 export const rejectArticle = async (
   reviewer: ActingUser,
   id: string,

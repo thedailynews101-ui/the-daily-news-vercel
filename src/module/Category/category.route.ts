@@ -8,21 +8,22 @@ import validateRequest from "../../middleware/validateRequest";
 
 const router = Router();
 
-const STAFF = [UserRole.EMPLOYEE, UserRole.ADMIN, UserRole.SUPER_ADMIN] as const;
+/** Category CRUD is admin-only; employees may still list categories for article forms. */
+const ADMINS = [UserRole.ADMIN, UserRole.SUPER_ADMIN] as const;
 
 router.get("/", auth(), categoryController.listCategories);
 router.post(
   "/",
-  auth(...STAFF),
+  auth(...ADMINS),
   validateRequest(createCategorySchema),
   categoryController.createCategory
 );
 router.patch(
   "/:id",
-  auth(...STAFF),
+  auth(...ADMINS),
   validateRequest(updateCategorySchema),
   categoryController.updateCategory
 );
-router.delete("/:id", auth(...STAFF), categoryController.deleteCategory);
+router.delete("/:id", auth(...ADMINS), categoryController.deleteCategory);
 
 export default router;

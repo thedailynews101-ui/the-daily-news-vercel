@@ -46,6 +46,12 @@ router.post(
   articleController.approveArticle
 );
 router.post(
+  "/:id/publish",
+  auth(...STAFF),
+  validateRequest(approveArticleSchema),
+  articleController.publishDraft
+);
+router.post(
   "/:id/reject",
   auth(...STAFF),
   validateRequest(rejectArticleSchema),

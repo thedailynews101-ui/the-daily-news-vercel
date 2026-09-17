@@ -132,6 +132,20 @@ export const approveArticle = async (req: Request, res: Response) => {
   });
 };
 
+export const publishDraft = async (req: Request, res: Response) => {
+  const article = await articleService.publishDraft(
+    actingUser(req),
+    req.params["id"] as string,
+    req.body
+  );
+
+  sendResponse(res, {
+    statusCode: 200,
+    message: "Draft published successfully.",
+    data: article,
+  });
+};
+
 export const rejectArticle = async (req: Request, res: Response) => {
   const article = await articleService.rejectArticle(
     actingUser(req),
