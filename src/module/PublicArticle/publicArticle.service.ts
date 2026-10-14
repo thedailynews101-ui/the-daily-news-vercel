@@ -2,6 +2,7 @@ import { ArticleStatus, HomeSlot } from "../../generated/prisma/enums";
 import { Prisma } from "../../generated/prisma/client";
 import prisma from "../../lib/prisma";
 import AppError from "../../utils/AppError";
+import * as eventService from "../Event/event.service";
 import type { HomePlacementInput, SearchQuery } from "./publicArticle.validation";
 
 const publicInclude = {
@@ -51,14 +52,17 @@ const SLOT_CAPS: Record<HomeSlot, number> = {
 };
 
 export const getHomeLayout = async () => {
-  const articles = await prisma.article.findMany({
-    where: {
-      ...publishedWhere(),
-      homeSlot: { not: null },
-    },
-    include: publicInclude,
-    orderBy: [{ homeRank: "asc" }, { publishedAt: "desc" }],
-  });
+  const [articles, eventGroups] = await Promise.all([
+    prisma.article.findMany({
+      where: {
+        ...publishedWhere(),
+        homeSlot: { not: null },
+      },
+      include: publicInclude,
+      orderBy: [{ homeRank: "asc" }, { publishedAt: "desc" }],
+    }),
+    eventService.listPublicEventGroups(),
+  ]);
 
   const bySlot = (slot: HomeSlot) =>
     articles
@@ -73,7 +77,9 @@ export const getHomeLayout = async () => {
     mega: megaList[0] ?? null,
     feed: bySlot(HomeSlot.FEED),
     visual: bySlot(HomeSlot.VISUAL),
-    pinned: bySlot(HomeSlot.PINNED),
+    // Fixed News is now driven by event groups; keep empty for backward-compatible clients.
+    pinned: [] as ReturnType<typeof toPublicCard>[],
+    eventGroups,
   };
 };
 

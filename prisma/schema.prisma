@@ -306,6 +306,36 @@ model Comment {
 }
 
 // ---------------------------------------------------------------------------
+// Homepage Fixed News (event groups + linked items)
+// ---------------------------------------------------------------------------
+
+/// Section title under Fixed News (e.g. Competitions, Events, Student Jobs).
+model EventGroup {
+  id        String      @id @default(uuid(7))
+  title     String
+  position  Int         @default(0)
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+  items     EventItem[]
+
+  @@index([position])
+}
+
+/// Linked bullet under an EventGroup; opens an external URL.
+model EventItem {
+  id        String     @id @default(uuid(7))
+  groupId   String
+  title     String
+  url       String
+  position  Int        @default(0)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  group     EventGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@index([groupId, position])
+}
+
+// ---------------------------------------------------------------------------
 // Governance
 // ---------------------------------------------------------------------------
 
