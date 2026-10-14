@@ -20,6 +20,11 @@ const envSchema = z.object({
   SMTP_USER: z.string().optional(),
   SMTP_PASS: z.string().optional(),
   MAIL_FROM: z.string().default("The Daily News <no-reply@dailynews.local>"),
+
+  // Open-Meteo (free, no API key). Defaults to Dhaka.
+  WEATHER_LAT: z.coerce.number().default(23.81),
+  WEATHER_LON: z.coerce.number().default(90.41),
+  WEATHER_LOCATION_LABEL: z.string().default("Dhaka"),
 });
 
 const parsed = envSchema.safeParse(process.env);
@@ -55,6 +60,12 @@ const config = Object.freeze({
     pass: env.SMTP_PASS,
     from: env.MAIL_FROM,
     isConfigured: Boolean(env.SMTP_HOST && env.SMTP_PORT && env.SMTP_USER && env.SMTP_PASS),
+  }),
+
+  weather: Object.freeze({
+    lat: env.WEATHER_LAT,
+    lon: env.WEATHER_LON,
+    locationLabel: env.WEATHER_LOCATION_LABEL,
   }),
 });
 

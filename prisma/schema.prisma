@@ -88,6 +88,18 @@ enum TokenType {
   PASSWORD_RESET
 }
 
+/// Which engagement widget appears in the homepage middle slot.
+enum MiddleWidget {
+  QUOTE
+  PUBLIC_OPINION
+}
+
+enum PublicOpinionStatus {
+  DRAFT
+  ACTIVE
+  CLOSED
+}
+
 // ---------------------------------------------------------------------------
 // Identity & access
 // ---------------------------------------------------------------------------
@@ -117,6 +129,8 @@ model User {
   savedArticles      SavedArticle[]
   comments           Comment[]
   auditLogs          AuditLog[]       @relation("AuditActor")
+  publicOpinions     PublicOpinion[]  @relation("PublicOpinionCreator")
+  publicOpinionVotes PublicOpinionResponse[]
 
   @@index([role, status])
   @@index([deletedAt])
@@ -333,6 +347,75 @@ model EventItem {
   group     EventGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
 
   @@index([groupId, position])
+}
+
+// ---------------------------------------------------------------------------
+// Homepage widgets (quote, public opinion, settings)
+// ---------------------------------------------------------------------------
+
+/// Singleton row (`id = "default"`) for homepage widget preferences.
+model SiteSetting {
+  id           String       @id @default("default")
+  middleWidget MiddleWidget @default(QUOTE)
+  updatedAt    DateTime     @updatedAt
+}
+
+model Quote {
+  id         String   @id @default(uuid(7))
+  text       String
+  authorName String
+  isActive   Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([isActive])
+}
+
+model PublicOpinion {
+  id          String              @id @default(uuid(7))
+  question    String
+  status      PublicOpinionStatus @default(DRAFT)
+  createdById String?
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  createdBy User?                  @relation("PublicOpinionCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  options   PublicOpinionOption[]
+  responses PublicOpinionResponse[]
+
+  @@index([status, createdAt(sort: Desc)])
+  @@index([createdById])
+}
+
+model PublicOpinionOption {
+  id        String   @id @default(uuid(7))
+  opinionId String
+  label     String
+  position  Int      @default(0)
+  createdAt DateTime @default(now())
+
+  opinion   PublicOpinion           @relation(fields: [opinionId], references: [id], onDelete: Cascade)
+  responses PublicOpinionResponse[]
+
+  @@index([opinionId, position])
+}
+
+model PublicOpinionResponse {
+  id        String   @id @default(uuid(7))
+  opinionId String
+  optionId  String
+  userId    String?
+  voterKey  String
+  createdAt DateTime @default(now())
+
+  opinion PublicOpinion       @relation(fields: [opinionId], references: [id], onDelete: Cascade)
+  option  PublicOpinionOption @relation(fields: [optionId], references: [id], onDelete: Cascade)
+  user    User?               @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@unique([opinionId, voterKey])
+  @@unique([opinionId, userId])
+  @@index([optionId])
+  @@index([userId])
 }
 
 // ---------------------------------------------------------------------------

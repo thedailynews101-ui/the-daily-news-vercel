@@ -137,15 +137,12 @@ const assertViewAccess = (user: ActingUser, article: ArticleWithRelations): void
 };
 
 const assertEditAccess = (user: ActingUser, article: ArticleWithRelations): void => {
-  if (isStaff(user.role)) {
-    return;
-  }
-
   if (article.authorId !== user.id) {
     throw new AppError(403, "You can only edit your own articles.");
   }
 
-  if (!AUTHOR_EDITABLE_STATUSES.includes(article.status)) {
+  // Staff may edit their own article in any status; authors are limited to draft/rejected.
+  if (!isStaff(user.role) && !AUTHOR_EDITABLE_STATUSES.includes(article.status)) {
     throw new AppError(
       409,
       "This article can no longer be edited. Withdraw it first if it is pending review."
@@ -154,15 +151,12 @@ const assertEditAccess = (user: ActingUser, article: ArticleWithRelations): void
 };
 
 const assertDeleteAccess = (user: ActingUser, article: ArticleWithRelations): void => {
-  if (isStaff(user.role)) {
-    return;
-  }
-
   if (article.authorId !== user.id) {
     throw new AppError(403, "You can only delete your own articles.");
   }
 
-  if (!AUTHOR_DELETABLE_STATUSES.includes(article.status)) {
+  // Staff may soft-delete their own article in any status; authors cannot delete published ones.
+  if (!isStaff(user.role) && !AUTHOR_DELETABLE_STATUSES.includes(article.status)) {
     throw new AppError(
       409,
       "Published articles cannot be deleted directly. Ask staff to archive it instead."
@@ -471,7 +465,7 @@ export const approveArticle = async (
   });
 };
 
-/** Staff-only: publish a newsroom draft without going through the user moderation queue. */
+/** Staff-only: publish your own newsroom draft without the user moderation queue. */
 export const publishDraft = async (
   staff: ActingUser,
   id: string,
@@ -482,6 +476,10 @@ export const publishDraft = async (
   }
 
   const article = await findArticleOrThrow(id);
+
+  if (article.authorId !== staff.id) {
+    throw new AppError(403, "You can only publish your own draft articles.");
+  }
 
   if (article.status !== ArticleStatus.DRAFT) {
     throw new AppError(409, "Only draft articles can be published this way.");

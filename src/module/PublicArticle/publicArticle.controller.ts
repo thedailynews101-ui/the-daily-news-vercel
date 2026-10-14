@@ -1,8 +1,10 @@
 import { Request, Response } from "express";
 
 import * as publicArticleService from "./publicArticle.service";
+import * as publicWidgetsService from "./publicWidgets.service";
 import { searchQuerySchema } from "./publicArticle.validation";
 import sendResponse from "../../utils/sendResponse";
+import { ensureVoterKey } from "../../utils/voterKey";
 
 export const getHome = async (_req: Request, res: Response) => {
   const layout = await publicArticleService.getHomeLayout();
@@ -11,6 +13,17 @@ export const getHome = async (_req: Request, res: Response) => {
     statusCode: 200,
     message: "Homepage layout retrieved successfully.",
     data: layout,
+  });
+};
+
+export const getWidgets = async (req: Request, res: Response) => {
+  const voterKey = ensureVoterKey(req, res);
+  const widgets = await publicWidgetsService.getPublicWidgets(voterKey, req.user?.id);
+
+  sendResponse(res, {
+    statusCode: 200,
+    message: "Homepage widgets retrieved successfully.",
+    data: widgets,
   });
 };
 
