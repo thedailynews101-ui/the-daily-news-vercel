@@ -7,6 +7,7 @@ const router = Router();
 
 router.get("/home", publicArticleController.getHome);
 router.get("/widgets", optionalAuth(), publicArticleController.getWidgets);
+router.get("/debug-cookie-mode", publicArticleController.getDebugCookieMode);
 router.get("/search", publicArticleController.search);
 router.get("/articles/:slug", publicArticleController.getBySlug);
 
