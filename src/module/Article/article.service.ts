@@ -1,5 +1,6 @@
 import { ArticleStatus, ReviewAction, UserRole } from "../../generated/prisma/enums";
 import { Prisma } from "../../generated/prisma/client";
+import { deleteImage, uploadImageBuffer } from "../../lib/cloudinary";
 import prisma from "../../lib/prisma";
 import AppError from "../../utils/AppError";
 import { slugify } from "../../utils/slugify";
@@ -180,7 +181,8 @@ const paginate = (page: number, limit: number, total: number) => ({
 
 export const createArticle = async (
   user: ActingUser,
-  input: CreateArticleInput
+  input: CreateArticleInput,
+  coverImage?: Express.Multer.File
 ): Promise<ReturnType<typeof toArticleDTO>> => {
   const staff = isStaff(user.role);
   const slug = await generateUniqueSlug(input.title);
@@ -189,13 +191,22 @@ export const createArticle = async (
   const status = staff ? (input.status ?? ArticleStatus.DRAFT) : ArticleStatus.DRAFT;
   const isDirectPublish = staff && status === ArticleStatus.APPROVED;
 
+  let coverImageUrl: string | undefined;
+  let coverImagePublicId: string | undefined;
+  if (coverImage) {
+    const uploaded = await uploadImageBuffer(coverImage.buffer);
+    coverImageUrl = uploaded.url;
+    coverImagePublicId = uploaded.publicId;
+  }
+
   const article = await prisma.article.create({
     data: {
       title: input.title,
       slug,
       excerpt: input.excerpt,
       content: input.content,
-      coverImageUrl: input.coverImageUrl,
+      coverImageUrl,
+      coverImagePublicId,
       readTimeMinutes: input.readTimeMinutes ?? 1,
       status,
       isFeatured: staff ? (input.isFeatured ?? false) : false,
@@ -229,13 +240,16 @@ export const getArticleById = async (
 export const updateArticle = async (
   user: ActingUser,
   id: string,
-  input: UpdateArticleInput
+  input: UpdateArticleInput,
+  coverImage?: Express.Multer.File
 ): Promise<ReturnType<typeof toArticleDTO>> => {
   const article = await findArticleOrThrow(id);
   assertEditAccess(user, article);
 
   const staff = isStaff(user.role);
   const data: Prisma.ArticleUpdateInput = {};
+  const previousPublicId = article.coverImagePublicId;
+  let shouldDeletePrevious = false;
 
   if (input.title !== undefined) {
     data.title = input.title;
@@ -243,8 +257,18 @@ export const updateArticle = async (
   }
   if (input.excerpt !== undefined) data.excerpt = input.excerpt;
   if (input.content !== undefined) data.content = input.content;
-  if (input.coverImageUrl !== undefined) data.coverImageUrl = input.coverImageUrl;
   if (input.readTimeMinutes !== undefined) data.readTimeMinutes = input.readTimeMinutes;
+
+  if (coverImage) {
+    const uploaded = await uploadImageBuffer(coverImage.buffer);
+    data.coverImageUrl = uploaded.url;
+    data.coverImagePublicId = uploaded.publicId;
+    shouldDeletePrevious = Boolean(previousPublicId);
+  } else if (input.removeCoverImage) {
+    data.coverImageUrl = null;
+    data.coverImagePublicId = null;
+    shouldDeletePrevious = Boolean(previousPublicId);
+  }
 
   const categoryUpdate = buildCategoryUpdate(input.categoryId);
   if (categoryUpdate !== undefined) data.category = categoryUpdate;
@@ -267,6 +291,10 @@ export const updateArticle = async (
     data,
     include: articleInclude,
   });
+
+  if (shouldDeletePrevious && previousPublicId) {
+    await deleteImage(previousPublicId);
+  }
 
   return toArticleDTO(updated);
 };

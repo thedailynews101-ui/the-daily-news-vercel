@@ -1,5 +1,6 @@
 import { NextFunction, Request, Response } from "express";
 import jwt from "jsonwebtoken";
+import multer from "multer";
 import { ZodError } from "zod";
 
 import config from "../config";
@@ -17,6 +18,12 @@ const globalErrorHandler = (err: unknown, _req: Request, res: Response, _next: N
     statusCode = err.statusCode;
     message = err.message;
     errorCode = err.errorCode;
+  } else if (err instanceof multer.MulterError) {
+    statusCode = 400;
+    message =
+      err.code === "LIMIT_FILE_SIZE"
+        ? "Cover image must be 5 MB or smaller."
+        : `Upload error: ${err.message}`;
   } else if (err instanceof ZodError) {
     statusCode = 400;
     message = "Validation error";

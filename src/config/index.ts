@@ -25,6 +25,10 @@ const envSchema = z.object({
   WEATHER_LAT: z.coerce.number().default(23.81),
   WEATHER_LON: z.coerce.number().default(90.41),
   WEATHER_LOCATION_LABEL: z.string().default("Dhaka"),
+
+  CLOUDINARY_CLOUD_NAME: z.string().min(1, "CLOUDINARY_CLOUD_NAME is required"),
+  CLOUDINARY_API_KEY: z.string().min(1, "CLOUDINARY_API_KEY is required"),
+  CLOUDINARY_API_SECRET: z.string().min(1, "CLOUDINARY_API_SECRET is required"),
 });
 
 const parsed = envSchema.safeParse(process.env);
@@ -66,6 +70,12 @@ const config = Object.freeze({
     lat: env.WEATHER_LAT,
     lon: env.WEATHER_LON,
     locationLabel: env.WEATHER_LOCATION_LABEL,
+  }),
+
+  cloudinary: Object.freeze({
+    cloudName: env.CLOUDINARY_CLOUD_NAME,
+    apiKey: env.CLOUDINARY_API_KEY,
+    apiSecret: env.CLOUDINARY_API_SECRET,
   }),
 });
 

@@ -11,6 +11,7 @@ import {
 } from "./article.validation";
 import { homePlacementSchema } from "../PublicArticle/publicArticle.validation";
 import auth from "../../middleware/auth";
+import { uploadCoverImage } from "../../middleware/upload";
 import validateRequest from "../../middleware/validateRequest";
 import { UserRole } from "../../generated/prisma/enums";
 
@@ -28,12 +29,19 @@ router.get("/home-layout", auth(...STAFF), articleController.getHomeLayout);
 router.get("/published", auth(...STAFF), articleController.listPublishedForPlacement);
 router.get("/", auth(...STAFF), articleController.listAllArticles);
 
-router.post("/", auth(), validateRequest(createArticleSchema), articleController.createArticle);
+router.post(
+  "/",
+  auth(),
+  uploadCoverImage,
+  validateRequest(createArticleSchema),
+  articleController.createArticle
+);
 
 router.get("/:id", auth(), articleController.getArticleById);
 router.patch(
   "/:id",
   auth(),
+  uploadCoverImage,
   validateRequest(updateArticleSchema),
   articleController.updateArticle
 );

@@ -12,7 +12,7 @@ const actingUser = (req: Request): ActingUser => ({
 });
 
 export const createArticle = async (req: Request, res: Response) => {
-  const article = await articleService.createArticle(actingUser(req), req.body);
+  const article = await articleService.createArticle(actingUser(req), req.body, req.file);
 
   sendResponse(res, {
     statusCode: 201,
@@ -56,7 +56,8 @@ export const updateArticle = async (req: Request, res: Response) => {
   const article = await articleService.updateArticle(
     actingUser(req),
     req.params["id"] as string,
-    req.body
+    req.body,
+    req.file
   );
 
   sendResponse(res, {

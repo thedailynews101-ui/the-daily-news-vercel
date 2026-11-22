@@ -229,8 +229,9 @@ model Article {
   slug            String        @unique
   excerpt         String?
   content         String
-  coverImageUrl   String?
-  status          ArticleStatus @default(DRAFT)
+  coverImageUrl      String?
+  coverImagePublicId String?
+  status             ArticleStatus @default(DRAFT)
   isFeatured      Boolean       @default(false)
   isBreaking      Boolean       @default(false)
   homeSlot        HomeSlot?
